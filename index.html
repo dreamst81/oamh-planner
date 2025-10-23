@@ -323,37 +323,33 @@ canvas.on('object:removed', () => pushHistory());
   // Load
   let loading = false;
   async function loadAll(){
-  if(!BOOKING_ID) return;
-  loading = true;
-  try{
-    const out = await apiGet(BOOKING_ID);
-    if(out.customer_name) custNameInput.value = out.customer_name;
-    if(out.event_at) eventAtInput.value = out.event_at;
-
-    isRestoring = true;
-    if(out.layout){
-      canvas.loadFromJSON(out.layout, () => {
-        isRestoring = false;
-        canvas.renderAll(); computeSeats();
-        history = [ JSON.stringify(out.layout) ];
+    if(!BOOKING_ID) return;
+    loading = true;
+    try{
+      const out = await apiGet(BOOKING_ID);
+      if(out.customer_name) custNameInput.value = out.customer_name;
+      if(out.event_at) eventAtInput.value = out.event_at;
+      if(out.layout){
+        canvas.loadFromJSON(out.layout, ()=>{
+          canvas.renderAll(); computeSeats();
+          // seed history so undo works after load
+          history = [ JSON.stringify(out.layout) ];
+          future = [];
+          updateUndoRedo();
+        });
+      } else {
+        // empty initial state
+        history = [ snapshot() ];
         future = [];
         updateUndoRedo();
-      });
-    } else {
-      // empty state
-      canvas.clear();
-      isRestoring = false;
-      history = [ snapshot() ];
-      future = [];
-      updateUndoRedo();
+      }
+      setStatus('Ready.');
+    }catch(e){
+      setStatus('Load failed');
+    } finally {
+      loading = false;
     }
-    setStatus('Ready.');
-  } catch(e){
-    setStatus('Load failed');
-  } finally {
-    loading = false;
   }
-}
 
   function setStatus(text, cls){statusEl.textContent=text;statusEl.className='status';if(cls)statusEl.classList.add(cls);}
 
