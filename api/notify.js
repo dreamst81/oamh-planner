@@ -8,7 +8,7 @@ export default async function handler(req, res) {
     const { booking_id, note = '' } = req.body || {};
     if (!booking_id) return res.status(400).json({ error: 'booking_id required' });
 
-    const to = process.env.COORDINATOR_EMAIL || 'info@oakesameshall.org';
+    const to = process.env.COORDINATOR_EMAIL || 'dreamstategraphics@yahoo.com';
     const appBase = process.env.APP_BASE_URL || 'http://localhost:3000';
     const plannerUrl = `${appBase}/index.html?booking_id=${encodeURIComponent(booking_id)}`;
 
