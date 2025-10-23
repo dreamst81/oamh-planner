@@ -226,63 +226,35 @@ document.addEventListener('DOMContentLoaded', async function(){
   document.getElementById('del').onclick=()=>{ const a=canvas.getActiveObjects(); a.forEach(o=>canvas.remove(o)); canvas.discardActiveObject().renderAll(); computeSeats(); pushHistory(); };
   document.addEventListener('keydown',(e)=>{ if((e.key==='Delete'||e.key==='Backspace')&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){const a=canvas.getActiveObjects();a.forEach(o=>canvas.remove(o));canvas.discardActiveObject().renderAll();computeSeats();pushHistory();e.preventDefault();}});
 
-  // ---------- Undo / Redo (robust)
-const undoBtn = document.getElementById('undo');
-const redoBtn = document.getElementById('redo');
-
-let history = [];
-let future = [];
-let isRestoring = false;   // <-- guard
-let loading = false;       // you already had this, keep it
-
-function snapshot() {
-  return JSON.stringify(canvas.toDatalessJSON(['kind']));
-}
-function updateUndoRedo() {
-  undoBtn.disabled = history.length <= 1;
-  redoBtn.disabled = future.length === 0;
-}
-function pushHistory() {
-  if (loading || isRestoring) return;      // don't record during load/restore
-  const snap = snapshot();
-  if (history.length === 0 || history[history.length - 1] !== snap) {
-    history.push(snap);
-    // cap history to avoid runaway growth
-    if (history.length > 200) history.shift();
+  // ---------- Undo / Redo (simple stacks)
+  const undoBtn = document.getElementById('undo');
+  const redoBtn = document.getElementById('redo');
+  let history = []; let future = [];
+  function snapshot(){ return JSON.stringify(canvas.toDatalessJSON(['kind'])); }
+  function pushHistory(){
+    history.push(snapshot());
     future = [];
     updateUndoRedo();
   }
-}
-
-function restoreFromJSON(json) {
-  isRestoring = true;
-  canvas.loadFromJSON(json, () => {
-    isRestoring = false;
-    canvas.renderAll();
-    computeSeats();
-    updateUndoRedo();
-  });
-}
-
-undoBtn.onclick = () => {
-  if (history.length <= 1) return;
-  const current = history.pop();
-  future.push(current);
-  const prev = history[history.length - 1];
-  restoreFromJSON(prev);
-};
-
-redoBtn.onclick = () => {
-  if (future.length === 0) return;
-  const next = future.pop();
-  history.push(next);
-  restoreFromJSON(next);
-};
-
-// seed history after initial load (see loadAll below)
-canvas.on('object:added',  () => pushHistory());
-canvas.on('object:modified',() => pushHistory());
-canvas.on('object:removed', () => pushHistory());
+  function updateUndoRedo(){
+    undoBtn.disabled = history.length <= 1;
+    redoBtn.disabled = future.length === 0;
+  }
+  undoBtn.onclick = () => {
+    if (history.length <= 1) return;
+    const current = history.pop(); future.push(current);
+    const prev = history[history.length - 1];
+    canvas.loadFromJSON(prev, ()=>{ canvas.renderAll(); computeSeats(); updateUndoRedo(); });
+  };
+  redoBtn.onclick = () => {
+    if (!future.length) return;
+    const state = future.pop(); history.push(state);
+    canvas.loadFromJSON(state, ()=>{ canvas.renderAll(); computeSeats(); updateUndoRedo(); });
+  };
+  // track modifications
+  canvas.on('object:added', ()=>{ if(!loading) pushHistory(); });
+  canvas.on('object:modified', ()=>{ pushHistory(); });
+  canvas.on('object:removed', ()=>{ pushHistory(); });
 
   // ---------- PNG export
   document.getElementById('exportPng').onclick=()=>{try{const url=canvas.toDataURL({format:'png'});const a=document.createElement('a');a.href=url;a.download='OAMH-layout.png';a.click();}catch(err){alert('PNG export blocked');}};
