@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>OAMH Floorplanner (Standalone • Blob)</title>
+<style>
+  :root{--bg:#0e141b;--side:#141c24;--muted:#8aa0b5;--btn:#3b82f6;--btnHover:#2563eb;--danger:#ef4444}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:#e5eef7;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+  .app{display:grid;grid-template-columns:280px 1fr;height:100dvh;max-height:100vh}
+  .side{background:var(--side);padding:18px 14px;display:flex;flex-direction:column;gap:14px;border-right:1px solid #1f2937}
+  .brand{display:flex;align-items:center;gap:10px;padding:2px 4px 6px}
+  .brand img{width:42px;height:auto}
+  .brand .title{font-weight:900;font-size:14px;line-height:1.1;letter-spacing:.04em}
+  .section{margin-top:6px}
+  .section h3{margin:10px 0 8px;font-size:12px;color:var(--muted);letter-spacing:.08em}
+  .inventory{display:flex;flex-direction:column;gap:10px}
+  .inv{border:1px solid #334155;background:#0f172a;padding:10px;border-radius:12px;cursor:pointer;display:flex;align-items:center;gap:10px}
+  .inv:hover{border-color:#64748b}
+  .inv img{width:56px;height:56px;object-fit:contain;background:transparent;border-radius:10px;padding:8px}
+  .inv .label{font-size:13px;font-weight:700}
+  .btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 12px;border-radius:12px;border:none;cursor:pointer;background:var(--btn);color:#fff;font-weight:700;font-size:14px}
+  .btn:hover{background:var(--btnHover)}
+  .btn-ghost{background:#0f172a;color:#e5eef7;border:1px solid #334155}
+  .btn-ghost:hover{border-color:#64748b}
+  .btn-danger{background:#2a0f10;color:#ffdada;border:1px solid #7f1d1d}
+  .row{display:flex;gap:8px;flex-wrap:wrap}
+  .swatches{display:flex;gap:6px}
+  .swatch{width:22px;height:22px;border-radius:6px;border:1px solid #334155;cursor:pointer}
+  .canvas-wrap{position:relative;height:100%;width:100%}
+  .lower-canvas{background:#0b0f14!important}
+  .upper-canvas{background:transparent!important}
+  .status{position:absolute;bottom:10px;left:10px;background:rgba(2,6,23,.6);border:1px solid #1f2937;border-radius:10px;padding:6px 10px;font-size:12px;pointer-events:none}
+  .status.saving{background:rgba(30,58,138,.5);border-color:#1e3a8a}
+  .status.saved{background:rgba(21,128,61,.45);border-color:#166534}
+  /* Notify modal */
+  .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:60}
+  .modal.show{display:flex}
+  .modal .backdrop{position:absolute;inset:0;background:rgba(2,6,23,.55)}
+  .modal .card{position:relative;z-index:1;width:min(560px,90vw);background:#0f172a;border:1px solid #334155;border-radius:14px;padding:16px;box-shadow:0 10px 40px rgba(0,0,0,.4)}
+  .modal h4{margin:0 0 10px;font-size:16px}
+  .modal textarea{width:100%;min-height:120px;resize:vertical;border-radius:10px;border:1px solid #334155;background:#0b1220;color:#e5eef7;padding:10px;font:inherit}
+  .modal .actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+</style>
+</head>
+<body>
+<div class="app" id="planner-root">
+  <aside class="side">
+    <div class="brand">
+      <img src="https://oakesameshall.org/wp-content/uploads/2025/05/oa-site-logo-300.webp" alt="Oakes Ames Hall Logo">
+      <div class="title">CUSTOMIZE<br>YOUR FLOOR PLAN</div>
+    </div>
+
+    <div class="section">
+      <h3>BOOKING INFO</h3>
+      <div id="custName">Customer: …</div>
+      <div id="eventAt">Event: …</div>
+      <div>Booking ID: <span id="codeShown"></span></div>
+      <div class="row" style="margin-top:8px">
+        <div class="btn-ghost" id="seatPill">Seats: <strong id="seatCount">0</strong></div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn" id="notifyBtn">Notify Coordinator</button>
+        <button class="btn-ghost" id="exportPng">Save PNG</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h3>INVENTORY</h3>
+      <div class="inventory">
+        <div class="inv" data-add="round">
+          <img src="https://oakesameshall.org/wp-content/uploads/2025/10/icon-table-and-chairs.webp" alt="Round icon">
+          <span class="label">Round Table 72"</span>
+        </div>
+        <div class="inv" data-add="rect">
+          <img src="https://oakesameshall.org/wp-content/uploads/2025/10/icon-rectangle-table-and-chairs.webp" alt="Rect icon">
+          <span class="label">Rect Table 8'</span>
+        </div>
+        <button class="btn" id="addText">Add a text label</button>
+        <div class="row" style="align-items:center">
+          <div class="swatches">
+            <div class="swatch" data-color="#ffffff" style="background:#ffffff" title="White"></div>
+            <div class="swatch" data-color="#000000" style="background:#000000" title="Black"></div>
+            <div class="swatch" data-color="#ef4444" style="background:#ef4444" title="Red"></div>
+          </div>
+          <span style="font-size:12px;color:var(--muted);margin-left:4px;">Text color</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="row">
+        <button class="btn-ghost btn" id="undo" disabled>Undo</button>
+        <button class="btn-ghost btn" id="redo" disabled>Redo</button>
+        <button class="btn btn-danger" id="del">Delete</button>
+      </div>
+    </div>
+  </aside>
+
+  <main class="canvas-wrap">
+    <canvas id="c"></canvas>
+    <div class="status" id="status">Ready.</div>
+  </main>
+
+  <!-- Notify Coordinator modal -->
+  <div class="modal" id="notifyModal" aria-hidden="true">
+    <div class="backdrop"></div>
+    <div class="card" role="dialog" aria-modal="true" aria-labelledby="notifyTitle">
+      <h4 id="notifyTitle">Notify Coordinator</h4>
+      <p style="margin:0 0 8px; color:var(--muted); font-size:13px;">
+        Add an optional note for the coordinator. The layout autosaves every 2 seconds.
+      </p>
+      <textarea id="notifyNote" placeholder="Type your message here… (optional)"></textarea>
+      <div class="actions">
+        <button class="btn-ghost btn" id="notifyCancel">Cancel</button>
+        <button class="btn" id="notifySend">Send</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/fabric@5.3.0/dist/fabric.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', async function(){
+  const params = new URLSearchParams(location.search);
+  const BOOKING_ID = params.get('booking_id');
+  document.getElementById('codeShown').textContent = BOOKING_ID || '(none)';
+  const statusEl = document.getElementById('status');
+  const seatCountEl = document.getElementById('seatCount');
+
+  const canvas = new fabric.Canvas('c', {
+    preserveObjectStacking:true,
+    selectionBorderColor:'#60a5fa',
+    selectionColor:'rgba(96,165,250,0.15)'
+  });
+
+  // Background blueprint
+  const BG_URL = "https://oakesameshall.org/wp-content/uploads/2025/10/HALL-A-large-scaled.webp";
+  const bgImg = new Image();
+  bgImg.onload = function(){
+    const img = new fabric.Image(bgImg, { originX:'left', originY:'top' });
+    canvas.setBackgroundImage(img, ()=>resizeCanvas(true));
+  };
+  bgImg.src = BG_URL;
+
+  // Resize (width-based scaling, keep aspect)
+  let lastW = 0;
+  function resizeCanvas(firstRun=false){
+    const sideW = 280;
+    const newW = Math.max(320, window.innerWidth - sideW);
+    const newH = Math.max(480, window.innerHeight);
+    const factor = lastW ? (newW / lastW) : 1;
+    if (!firstRun && lastW && factor !== 1){
+      canvas.getObjects().forEach(o=>{
+        if (o === canvas.backgroundImage) return;
+        o.left *= factor; o.top *= factor;
+        if (o.type === 'i-text') o.fontSize *= factor; else { o.scaleX *= factor; o.scaleY *= factor; }
+        o.setCoords();
+      });
+    }
+    canvas.setWidth(newW); canvas.setHeight(newH);
+    if (canvas.backgroundImage){
+      const img = canvas.backgroundImage;
+      const scale = canvas.getWidth()/img.width;
+      img.scaleX=scale; img.scaleY=scale; img.left=0; img.top=0;
+    }
+    lastW=newW; canvas.renderAll();
+  }
+  window.addEventListener('resize', ()=>resizeCanvas(false));
+
+  // Seat tally
+  function computeSeats(){
+    let total=0; canvas.getObjects().forEach(o=>{ if(o.kind==='round' || o.kind==='rect') total+=8; });
+    seatCountEl.textContent = total;
+  }
+
+  // Inventory add
+  function centerPos(w=0,h=0){ return { left: canvas.getWidth()/2 - w/2, top: canvas.getHeight()/2 - h/2 }; }
+  function addImg(url, prop, kind){
+    const el=new Image();
+    el.onload=function(){
+      const targetW=canvas.getWidth()*prop;
+      const scale=targetW/el.naturalWidth;
+      const scaledW=el.naturalWidth*scale, scaledH=el.naturalHeight*scale;
+      const pos=centerPos(scaledW, scaledH);
+      const img=new fabric.Image(el,{ left: pos.left, top: pos.top, kind, hasRotatingPoint:true });
+      img.scaleX=img.scaleY=scale; canvas.add(img); canvas.setActiveObject(img);
+      computeSeats();
+    };
+    el.src=url;
+  }
+  document.querySelector('[data-add="round"]').onclick=()=>addImg('https://oakesameshall.org/wp-content/uploads/2025/10/table-and-chairs.webp',0.10,'round');
+  document.querySelector('[data-add="rect"]').onclick=()=>addImg('https://oakesameshall.org/wp-content/uploads/2025/10/rectangle-table-and-chairs.webp',0.10,'rect');
+
+  // Text
+  let currentTextColor = '#000000';
+  document.getElementById('addText').onclick = () => {
+    const it = new fabric.IText('Label', {
+      originX:'center', originY:'center',
+      left: canvas.getWidth()/2, top: canvas.getHeight()/2,
+      fill: currentTextColor, fontSize: Math.max(18, canvas.getWidth()*0.012),
+      fontWeight:700, kind:'text'
+    });
+    canvas.add(it); canvas.setActiveObject(it);
+  };
+  document.querySelectorAll('.swatch').forEach(s => s.onclick = () => {
+    currentTextColor = s.dataset.color;
+    const active=canvas.getActiveObject(); if(active && String(active.type).toLowerCase().includes('text')){
+      active.set('fill', currentTextColor); canvas.renderAll();
+    }
+  });
+
+  // Delete key
+  document.getElementById('del').onclick=()=>{ const a=canvas.getActiveObjects(); a.forEach(o=>canvas.remove(o)); canvas.discardActiveObject().renderAll(); computeSeats(); };
+  document.addEventListener('keydown',(e)=>{ if((e.key==='Delete'||e.key==='Backspace')&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){const a=canvas.getActiveObjects();a.forEach(o=>canvas.remove(o));canvas.discardActiveObject().renderAll();computeSeats();e.preventDefault();}});
+
+  // PNG export
+  document.getElementById('exportPng').onclick=()=>{try{const url=canvas.toDataURL({format:'png'});const a=document.createElement('a');a.href=url;a.download='OAMH-layout.png';a.click();}catch(err){alert('PNG export blocked');}};
+
+  // --- API helpers (Blob-backed)
+  async function loadLayout(bookingId){
+    const r = await fetch(`/api/layout?booking_id=${encodeURIComponent(bookingId)}`);
+    if(!r.ok){ statusEl.textContent = 'Load failed'; return; }
+    const out = await r.json();
+    // customer/event placeholders (can integrate later)
+    if(out.layout){ canvas.loadFromJSON(out.layout, ()=>{ canvas.renderAll(); computeSeats(); }); }
+  }
+
+  async function saveLayout(bookingId){
+    const json = canvas.toDatalessJSON(['kind']);
+    const r = await fetch('/api/layout', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ booking_id: bookingId, layout: json })
+    });
+    return r.ok;
+  }
+
+  // Autosave heartbeat (2s; only if changed)
+  let lastJson = '';
+  async function heartbeat(){
+    if(!BOOKING_ID) return;
+    try{
+      const json = JSON.stringify(canvas.toDatalessJSON(['kind']));
+      if(json !== lastJson){
+        lastJson = json; statusEl.textContent = 'Saving...';
+        const ok = await saveLayout(BOOKING_ID);
+        statusEl.textContent = ok ? 'Saved ✓' : 'Save failed';
+      }
+    }catch(e){ statusEl.textContent = 'Save error'; }
+  }
+  setInterval(heartbeat, 2000);
+  setTimeout(heartbeat, 1000);
+
+  // Notify modal
+  const notifyBtn = document.getElementById('notifyBtn');
+  const notifyModal = document.getElementById('notifyModal');
+  const notifyNote = document.getElementById('notifyNote');
+  const notifyCancel = document.getElementById('notifyCancel');
+  const notifySend = document.getElementById('notifySend');
+  function openNotify(){ notifyNote.value=''; notifyModal.classList.add('show'); notifyModal.setAttribute('aria-hidden','false'); setTimeout(()=>notifyNote.focus(), 50); }
+  function closeNotify(){ notifyModal.classList.remove('show'); notifyModal.setAttribute('aria-hidden','true'); }
+  notifyBtn.addEventListener('click', openNotify);
+  notifyCancel.addEventListener('click', closeNotify);
+  notifyModal.querySelector('.backdrop').addEventListener('click', closeNotify);
+  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape'&&notifyModal.classList.contains('show')) closeNotify(); });
+
+  notifySend.addEventListener('click', async ()=>{
+    if(!BOOKING_ID){ alert('Missing booking id'); return; }
+    statusEl.textContent = 'Saving...'; await saveLayout(BOOKING_ID); statusEl.textContent = 'Saved ✓';
+    const r = await fetch('/api/notify', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ booking_id: BOOKING_ID, note: notifyNote.value || '' })
+    });
+    if(r.ok){ closeNotify(); alert('Coordinator notified!'); } else { const t=await r.text(); alert('Notify failed: '+t); }
+  });
+
+  // Kick off
+  if(BOOKING_ID){ await loadLayout(BOOKING_ID); }
+});
+</script>
+</body>
+</html>
