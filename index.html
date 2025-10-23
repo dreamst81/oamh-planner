@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>OAMH Floorplanner (Standalone • Blob)</title>
+<title>OAMH Floorplanner (Standalone • Blob • Meta)</title>
 <style>
   :root{--bg:#0e141b;--side:#141c24;--muted:#8aa0b5;--btn:#3b82f6;--btnHover:#2563eb;--danger:#ef4444}
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:#e5eef7;font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
-  .app{display:grid;grid-template-columns:280px 1fr;height:100dvh;max-height:100vh}
+  .app{display:grid;grid-template-columns:320px 1fr;height:100dvh;max-height:100vh}
   .side{background:var(--side);padding:18px 14px;display:flex;flex-direction:column;gap:14px;border-right:1px solid #1f2937}
   .brand{display:flex;align-items:center;gap:10px;padding:2px 4px 6px}
   .brand img{width:42px;height:auto}
@@ -34,6 +34,7 @@
   .status{position:absolute;bottom:10px;left:10px;background:rgba(2,6,23,.6);border:1px solid #1f2937;border-radius:10px;padding:6px 10px;font-size:12px;pointer-events:none}
   .status.saving{background:rgba(30,58,138,.5);border-color:#1e3a8a}
   .status.saved{background:rgba(21,128,61,.45);border-color:#166534}
+  .input{width:100%;border:1px solid #334155;border-radius:10px;background:#0b1220;color:#e5eef7;padding:10px;font:inherit}
   /* Notify modal */
   .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:60}
   .modal.show{display:flex}
@@ -54,10 +55,13 @@
 
     <div class="section">
       <h3>BOOKING INFO</h3>
-      <div id="custName">Customer: …</div>
-      <div id="eventAt">Event: …</div>
-      <div>Booking ID: <span id="codeShown"></span></div>
-      <div class="row" style="margin-top:8px">
+      <label style="font-size:12px;color:var(--muted)">Customer name</label>
+      <input id="custNameInput" class="input" placeholder="e.g., Joan Smith" />
+      <label style="font-size:12px;color:var(--muted);margin-top:8px">Event (date/time)</label>
+      <input id="eventAtInput" class="input" placeholder="e.g., Nov 18, 2–6pm" />
+      <div style="font-size:12px;color:var(--muted);margin-top:6px">Booking ID: <span id="codeShown"></span></div>
+
+      <div class="row" style="margin-top:10px">
         <div class="btn-ghost" id="seatPill">Seats: <strong id="seatCount">0</strong></div>
       </div>
       <div class="row" style="margin-top:8px">
@@ -91,8 +95,8 @@
 
     <div class="section">
       <div class="row">
-        <button class="btn-ghost btn" id="undo" disabled>Undo</button>
-        <button class="btn-ghost btn" id="redo" disabled>Redo</button>
+        <button class="btn-ghost btn" id="undo">Undo</button>
+        <button class="btn-ghost btn" id="redo">Redo</button>
         <button class="btn btn-danger" id="del">Delete</button>
       </div>
     </div>
@@ -109,7 +113,7 @@
     <div class="card" role="dialog" aria-modal="true" aria-labelledby="notifyTitle">
       <h4 id="notifyTitle">Notify Coordinator</h4>
       <p style="margin:0 0 8px; color:var(--muted); font-size:13px;">
-        Add an optional note for the coordinator. The layout autosaves every 2 seconds.
+        Add an optional note for the coordinator. The layout will be saved first.
       </p>
       <textarea id="notifyNote" placeholder="Type your message here… (optional)"></textarea>
       <div class="actions">
@@ -126,6 +130,11 @@ document.addEventListener('DOMContentLoaded', async function(){
   const params = new URLSearchParams(location.search);
   const BOOKING_ID = params.get('booking_id');
   document.getElementById('codeShown').textContent = BOOKING_ID || '(none)';
+
+  // Inputs (now persisted)
+  const custNameInput = document.getElementById('custNameInput');
+  const eventAtInput  = document.getElementById('eventAtInput');
+
   const statusEl = document.getElementById('status');
   const seatCountEl = document.getElementById('seatCount');
 
@@ -135,7 +144,7 @@ document.addEventListener('DOMContentLoaded', async function(){
     selectionColor:'rgba(96,165,250,0.15)'
   });
 
-  // Background blueprint
+  // ---------- Background blueprint
   const BG_URL = "https://oakesameshall.org/wp-content/uploads/2025/10/HALL-A-large-scaled.webp";
   const bgImg = new Image();
   bgImg.onload = function(){
@@ -144,10 +153,10 @@ document.addEventListener('DOMContentLoaded', async function(){
   };
   bgImg.src = BG_URL;
 
-  // Resize (width-based scaling, keep aspect)
+  // ---------- Resize (width-based scaling, keep aspect)
   let lastW = 0;
   function resizeCanvas(firstRun=false){
-    const sideW = 280;
+    const sideW = 320;
     const newW = Math.max(320, window.innerWidth - sideW);
     const newH = Math.max(480, window.innerHeight);
     const factor = lastW ? (newW / lastW) : 1;
@@ -169,13 +178,13 @@ document.addEventListener('DOMContentLoaded', async function(){
   }
   window.addEventListener('resize', ()=>resizeCanvas(false));
 
-  // Seat tally
+  // ---------- Seat tally
   function computeSeats(){
     let total=0; canvas.getObjects().forEach(o=>{ if(o.kind==='round' || o.kind==='rect') total+=8; });
     seatCountEl.textContent = total;
   }
 
-  // Inventory add
+  // ---------- Inventory add
   function centerPos(w=0,h=0){ return { left: canvas.getWidth()/2 - w/2, top: canvas.getHeight()/2 - h/2 }; }
   function addImg(url, prop, kind){
     const el=new Image();
@@ -186,6 +195,7 @@ document.addEventListener('DOMContentLoaded', async function(){
       const pos=centerPos(scaledW, scaledH);
       const img=new fabric.Image(el,{ left: pos.left, top: pos.top, kind, hasRotatingPoint:true });
       img.scaleX=img.scaleY=scale; canvas.add(img); canvas.setActiveObject(img);
+      pushHistory();
       computeSeats();
     };
     el.src=url;
@@ -193,7 +203,7 @@ document.addEventListener('DOMContentLoaded', async function(){
   document.querySelector('[data-add="round"]').onclick=()=>addImg('https://oakesameshall.org/wp-content/uploads/2025/10/table-and-chairs.webp',0.10,'round');
   document.querySelector('[data-add="rect"]').onclick=()=>addImg('https://oakesameshall.org/wp-content/uploads/2025/10/rectangle-table-and-chairs.webp',0.10,'rect');
 
-  // Text
+  // ---------- Text
   let currentTextColor = '#000000';
   document.getElementById('addText').onclick = () => {
     const it = new fabric.IText('Label', {
@@ -203,54 +213,117 @@ document.addEventListener('DOMContentLoaded', async function(){
       fontWeight:700, kind:'text'
     });
     canvas.add(it); canvas.setActiveObject(it);
+    pushHistory();
   };
   document.querySelectorAll('.swatch').forEach(s => s.onclick = () => {
     currentTextColor = s.dataset.color;
     const active=canvas.getActiveObject(); if(active && String(active.type).toLowerCase().includes('text')){
-      active.set('fill', currentTextColor); canvas.renderAll();
+      active.set('fill', currentTextColor); canvas.renderAll(); pushHistory();
     }
   });
 
-  // Delete key
-  document.getElementById('del').onclick=()=>{ const a=canvas.getActiveObjects(); a.forEach(o=>canvas.remove(o)); canvas.discardActiveObject().renderAll(); computeSeats(); };
-  document.addEventListener('keydown',(e)=>{ if((e.key==='Delete'||e.key==='Backspace')&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){const a=canvas.getActiveObjects();a.forEach(o=>canvas.remove(o));canvas.discardActiveObject().renderAll();computeSeats();e.preventDefault();}});
+  // ---------- Delete key
+  document.getElementById('del').onclick=()=>{ const a=canvas.getActiveObjects(); a.forEach(o=>canvas.remove(o)); canvas.discardActiveObject().renderAll(); computeSeats(); pushHistory(); };
+  document.addEventListener('keydown',(e)=>{ if((e.key==='Delete'||e.key==='Backspace')&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)){const a=canvas.getActiveObjects();a.forEach(o=>canvas.remove(o));canvas.discardActiveObject().renderAll();computeSeats();pushHistory();e.preventDefault();}});
 
-  // PNG export
+  // ---------- Undo / Redo (simple stacks)
+  const undoBtn = document.getElementById('undo');
+  const redoBtn = document.getElementById('redo');
+  let history = []; let future = [];
+  function snapshot(){ return JSON.stringify(canvas.toDatalessJSON(['kind'])); }
+  function pushHistory(){
+    history.push(snapshot());
+    future = [];
+    updateUndoRedo();
+  }
+  function updateUndoRedo(){
+    undoBtn.disabled = history.length <= 1;
+    redoBtn.disabled = future.length === 0;
+  }
+  undoBtn.onclick = () => {
+    if (history.length <= 1) return;
+    const current = history.pop(); future.push(current);
+    const prev = history[history.length - 1];
+    canvas.loadFromJSON(prev, ()=>{ canvas.renderAll(); computeSeats(); updateUndoRedo(); });
+  };
+  redoBtn.onclick = () => {
+    if (!future.length) return;
+    const state = future.pop(); history.push(state);
+    canvas.loadFromJSON(state, ()=>{ canvas.renderAll(); computeSeats(); updateUndoRedo(); });
+  };
+  // track modifications
+  canvas.on('object:added', ()=>{ if(!loading) pushHistory(); });
+  canvas.on('object:modified', ()=>{ pushHistory(); });
+  canvas.on('object:removed', ()=>{ pushHistory(); });
+
+  // ---------- PNG export
   document.getElementById('exportPng').onclick=()=>{try{const url=canvas.toDataURL({format:'png'});const a=document.createElement('a');a.href=url;a.download='OAMH-layout.png';a.click();}catch(err){alert('PNG export blocked');}};
 
-  // --- API helpers (Blob-backed)
-  async function loadLayout(bookingId){
+  // ---------- Data I/O helpers (Blob-backed)
+  async function apiGet(bookingId){
     const r = await fetch(`/api/layout?booking_id=${encodeURIComponent(bookingId)}`);
-    if(!r.ok){ statusEl.textContent = 'Load failed'; return; }
-    const out = await r.json();
-    // customer/event placeholders (can integrate later)
-    if(out.layout){ canvas.loadFromJSON(out.layout, ()=>{ canvas.renderAll(); computeSeats(); }); }
+    if(!r.ok) throw new Error('Load failed');
+    return r.json();
   }
-
-  async function saveLayout(bookingId){
-    const json = canvas.toDatalessJSON(['kind']);
+  async function apiSave(bookingId, layout, customer_name, event_at){
     const r = await fetch('/api/layout', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ booking_id: bookingId, layout: json })
+      body: JSON.stringify({ booking_id: bookingId, layout, customer_name, event_at })
     });
-    return r.ok;
+    if(!r.ok){ const t=await r.text(); throw new Error(t||'Save failed'); }
+    return r.json();
   }
 
   // Autosave heartbeat (2s; only if changed)
-  let lastJson = '';
+  let lastJson = '', lastMeta = '';
+  function currentMeta(){ return JSON.stringify({customer_name:custNameInput.value.trim(), event_at:eventAtInput.value.trim()}); }
   async function heartbeat(){
     if(!BOOKING_ID) return;
     try{
       const json = JSON.stringify(canvas.toDatalessJSON(['kind']));
-      if(json !== lastJson){
-        lastJson = json; statusEl.textContent = 'Saving...';
-        const ok = await saveLayout(BOOKING_ID);
-        statusEl.textContent = ok ? 'Saved ✓' : 'Save failed';
+      const meta = currentMeta();
+      if(json !== lastJson || meta !== lastMeta){
+        lastJson = json; lastMeta = meta; setStatus('Saving...','saving');
+        const ok = await apiSave(BOOKING_ID, JSON.parse(json), custNameInput.value.trim(), eventAtInput.value.trim());
+        setStatus('Saved ✓','saved');
       }
-    }catch(e){ statusEl.textContent = 'Save error'; }
+    }catch(e){ setStatus('Save error'); console.warn(e); }
   }
   setInterval(heartbeat, 2000);
-  setTimeout(heartbeat, 1000);
+  setTimeout(heartbeat, 800);
+
+  // Load
+  let loading = false;
+  async function loadAll(){
+    if(!BOOKING_ID) return;
+    loading = true;
+    try{
+      const out = await apiGet(BOOKING_ID);
+      if(out.customer_name) custNameInput.value = out.customer_name;
+      if(out.event_at) eventAtInput.value = out.event_at;
+      if(out.layout){
+        canvas.loadFromJSON(out.layout, ()=>{
+          canvas.renderAll(); computeSeats();
+          // seed history so undo works after load
+          history = [ JSON.stringify(out.layout) ];
+          future = [];
+          updateUndoRedo();
+        });
+      } else {
+        // empty initial state
+        history = [ snapshot() ];
+        future = [];
+        updateUndoRedo();
+      }
+      setStatus('Ready.');
+    }catch(e){
+      setStatus('Load failed');
+    } finally {
+      loading = false;
+    }
+  }
+
+  function setStatus(text, cls){statusEl.textContent=text;statusEl.className='status';if(cls)statusEl.classList.add(cls);}
 
   // Notify modal
   const notifyBtn = document.getElementById('notifyBtn');
@@ -267,16 +340,31 @@ document.addEventListener('DOMContentLoaded', async function(){
 
   notifySend.addEventListener('click', async ()=>{
     if(!BOOKING_ID){ alert('Missing booking id'); return; }
-    statusEl.textContent = 'Saving...'; await saveLayout(BOOKING_ID); statusEl.textContent = 'Saved ✓';
-    const r = await fetch('/api/notify', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ booking_id: BOOKING_ID, note: notifyNote.value || '' })
-    });
-    if(r.ok){ closeNotify(); alert('Coordinator notified!'); } else { const t=await r.text(); alert('Notify failed: '+t); }
+    try{
+      // force save with latest meta
+      setStatus('Saving...','saving');
+      await apiSave(BOOKING_ID, canvas.toDatalessJSON(['kind']), custNameInput.value.trim(), eventAtInput.value.trim());
+      setStatus('Saved ✓','saved');
+
+      const r = await fetch('/api/notify', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          booking_id: BOOKING_ID,
+          note: notifyNote.value || ''
+        })
+      });
+      if(r.ok){
+        closeNotify();
+        alert('Coordinator notified!');
+      } else {
+        const t = await r.text();
+        alert('Notify failed: ' + t);
+      }
+    }catch(e){ alert('Save/Notify error: ' + e.message); }
   });
 
   // Kick off
-  if(BOOKING_ID){ await loadLayout(BOOKING_ID); }
+  await loadAll();
 });
 </script>
 </body>
